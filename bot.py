@@ -33,7 +33,8 @@ daily_themes = {
 
 
 def generate_text_with_gemini(prompt):
-  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+  # استخدام نموذج أكثر استقراراً
+  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
   headers = {"Content-Type": "application/json"}
   data = {"contents": [{"parts": [{"text": prompt}]}]}
 
@@ -53,12 +54,12 @@ async def generate_and_send_post():
   theme = daily_themes.get(day_of_week, "تطوير ذات ومعلومات عامة")
 
   prompt = f"""
-    قم بتأليف منشور قصير، مبتكر، وجذاب جداً لقناة على تلجرام حول الموضوع التالي: '{theme}'.
+    قم بتأليف منشور قصير جداً، مبتكر، وجذاب جداً لقناة على تلجرام حول الموضوع التالي: '{theme}'.
     الشروط الصارمة:
     1. أن يكون المنشور ثنائي اللغة (النص العربي أولاً، يليه فاصل '---', ثم الترجمة باللغة الإنجليزية).
-    2. استخدم رموز تعبيرية (Emojis) جذابة بصرياً.
-    3. اجعل الأسلوب مشوقاً ومناسباً لزيادة التفاعل والمشاركة.
-    4. لا تضع أي مقدمات أو تعقيبات خارج النص، اكتب المحتوى مباشرة جاهزاً للنشر.
+    2. ألا يتجاوز طول النص بالكامل 700 حرف لكي يناسب وصف الصورة في تيليجرام.
+    3. استخدم رموز تعبيرية (Emojis) جذابة.
+    4. لا تضع أي مقدمات، اكتب المحتوى مباشرة.
     """
 
   try:
@@ -67,6 +68,10 @@ async def generate_and_send_post():
     message_text = await loop.run_in_executor(
         None, generate_text_with_gemini, prompt
     )
+
+    # حماية ضد تجاوز الحد الأقصى لكابشن تيليجرام (1024 حرف)
+    if len(message_text) > 800:
+      message_text = message_text[:800] + "..."
 
     footer = "\n\n─────────────────\n💡 @Everything_your_mind_needs"
     final_message = message_text + footer
