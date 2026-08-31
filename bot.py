@@ -101,27 +101,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   query = update.callback_query
-  await query.answer()
+
+  # تجاهل خطأ انتهاء صلاحية الضغطة بسبب سبات رندر المجاني
+  try:
+    await query.answer()
+  except Exception:
+    pass
 
   if query.data == "force_post":
-    await query.edit_message_text(text="⏳ جاري توليد ونشر المنشور في القناة الآن...")
+    # استخدام send_message بدلاً من edit لتفادي مشاكل الوقت المستقطع
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text="⏳ جاري توليد ونشر المنشور في القناة الآن...",
+    )
     try:
       await generate_and_send_post()
-      await query.edit_message_text(
-          text="✅ تم نشر المنشور بنجاح في القناة! يمكنك الضغط على /start للعودة للقائمة."
+      await context.bot.send_message(
+          chat_id=query.message.chat_id,
+          text="✅ تم نشر المنشور بنجاح في القناة!",
       )
     except Exception as e:
-      await query.edit_message_text(text=f"❌ حدث خطأ أثناء النشر: {e}")
+      await context.bot.send_message(
+          chat_id=query.message.chat_id, text=f"❌ حدث خطأ أثناء النشر: {e}"
+      )
 
   elif query.data == "status":
     day_of_week = datetime.datetime.today().weekday()
     theme = daily_themes.get(day_of_week, "تطوير ذات")
     status_text = (
         f"🤖 حالة البوت: يعمل بنجاح 24/7\n\n📌 موضوع اليوم: {theme}\n⏰ أوقات النشر"
-        " اليومية: 9:00 صباحاً، 3:00 عصراً، و9:00 مساءً (بتوقيت سوريا)\n\nاضغط"
-        " على /start للعودة للقائمة الرئيسية."
+        " اليومية: 9:00 صباحاً، 3:00 عصراً، و9:00 مساءً (بتوقيت سوريا)"
     )
-    await query.edit_message_text(text=status_text)
+    await context.bot.send_message(
+        chat_id=query.message.chat_id, text=status_text
+    )
 
 
 # بدء الجدولة عند تشغيل التطبيق
