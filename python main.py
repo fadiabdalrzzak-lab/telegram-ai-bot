@@ -1,6 +1,4 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
-import threading
 import asyncio
 import datetime
 from datetime import timedelta, timezone
@@ -14,10 +12,13 @@ from telegram.ext import (
 )
 import requests
 
-# قراءة البيانات بأمان من المتغيرات البيئية في Render
+# قراءة المتغيرات البيئية من Render
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@Everything_your_mind_needs")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+WEBHOOK_URL = os.getenv(
+    "WEBHOOK_URL"
+)  # رابط خدمتك على رندر (مثال: https://xxxx.onrender.com)
 
 # جدول المواضيع اليومية
 daily_themes = {
@@ -32,7 +33,6 @@ daily_themes = {
 
 
 def generate_text_with_gemini(prompt):
-  # تم تحديث النموذج إلى gemini-3.6-flash لتجنب أخطاء 404
   url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
   headers = {"Content-Type": "application/json"}
   data = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -135,34 +135,32 @@ async def post_init(application: Application):
   )
 
 
-# تشغيل بوت التليجرام في الخلفية
-def run_telegram_bot():
+def main():
+  if not TELEGRAM_TOKEN:
+    print("Error: TELEGRAM_TOKEN is missing!")
+    return
+
+  port = int(os.getenv("PORT", 10000))
   application = (
       Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
   )
+
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
-  application.run_polling()
 
+  # تشغيل الـ Webhook لإرضاء Render وفتح المنفذ بشكل صحيح ومجاني
+  webhook_path = TELEGRAM_TOKEN
+  full_webhook_url = (
+      f"{WEBHOOK_URL.rstrip('/')}/{webhook_path}" if WEBHOOK_URL else None
+  )
 
-# خادم الويب لإرضاء منصة Render
-class SimpleHandler(BaseHTTPRequestHandler):
-
-  def do_GET(self):
-    self.send_response(200)
-    self.end_headers()
-    self.wfile.write(b"Telegram AI Bot is running 24/7 successfully!")
-
-
-def main():
-  # 1. تشغيل بوت التليجرام في خيط خلفي (Background Thread)
-  threading.Thread(target=run_telegram_bot, daemon=True).start()
-
-  # 2. تشغيل خادم الويب على الخيط الرئيسي (Main Thread) ليفتح المنفذ فوراً ويستجيب لـ Render
-  port = int(os.getenv("PORT", 10000))
-  server = HTTPServer(("0.0.0.0", port), SimpleHandler)
-  print(f"🚀 Web server is running and binding port {port} instantly...")
-  server.serve_forever()
+  print(f"🚀 Starting bot on port {port} using Webhook...")
+  application.run_webhook(
+      listen="0.0.0.0",
+      port=port,
+      url_path=webhook_path,
+      webhook_url=full_webhook_url,
+  )
 
 
 if __name__ == "__main__":
