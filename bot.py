@@ -14,27 +14,6 @@ from telegram.ext import (
 )
 import requests
 
-
-# --- 1. خادم ويب وهمي لإرضاء منصة Render ومنع مشكلة No open ports ---
-class SimpleHandler(BaseHTTPRequestHandler):
-
-  def do_GET(self):
-    self.send_response(200)
-    self.end_headers()
-    self.wfile.write(b"Telegram AI Bot is running 24/7 successfully!")
-
-
-def run_web_server():
-  port = int(os.getenv("PORT", 10000))
-  server = HTTPServer(("0.0.0.0", port), SimpleHandler)
-  server.serve_forever()
-
-
-# تشغيل خادم الويب في الخلفية فوراً
-threading.Thread(target=run_web_server, daemon=True).start()
-# -----------------------------------------------------------------
-
-
 # قراءة البيانات بأمان من المتغيرات البيئية في Render
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@Everything_your_mind_needs")
@@ -53,7 +32,8 @@ daily_themes = {
 
 
 def generate_text_with_gemini(prompt):
-  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+  # تم تحديث النموذج إلى gemini-3.6-flash لتجنب أخطاء 404
+  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
   headers = {"Content-Type": "application/json"}
   data = {"contents": [{"parts": [{"text": prompt}]}]}
 
@@ -155,15 +135,34 @@ async def post_init(application: Application):
   )
 
 
-def main():
+# تشغيل بوت التليجرام في الخلفية
+def run_telegram_bot():
   application = (
       Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
   )
-
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
-
   application.run_polling()
+
+
+# خادم الويب لإرضاء منصة Render
+class SimpleHandler(BaseHTTPRequestHandler):
+
+  def do_GET(self):
+    self.send_response(200)
+    self.end_headers()
+    self.wfile.write(b"Telegram AI Bot is running 24/7 successfully!")
+
+
+def main():
+  # 1. تشغيل بوت التليجرام في خيط خلفي (Background Thread)
+  threading.Thread(target=run_telegram_bot, daemon=True).start()
+
+  # 2. تشغيل خادم الويب على الخيط الرئيسي (Main Thread) ليفتح المنفذ فوراً ويستجيب لـ Render
+  port = int(os.getenv("PORT", 10000))
+  server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+  print(f"🚀 Web server is running and binding port {port} instantly...")
+  server.serve_forever()
 
 
 if __name__ == "__main__":
