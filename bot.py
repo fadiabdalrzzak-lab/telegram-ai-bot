@@ -1,4 +1,6 @@
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
+import threading
 import asyncio
 import datetime
 from datetime import timedelta, timezone
@@ -12,11 +14,31 @@ from telegram.ext import (
 )
 import requests
 
-# قراءة البيانات بأمان من المتغيرات البيئية (Environment Variables)
+
+# --- 1. خادم ويب وهمي لإرضاء منصة Render ومنع مشكلة No open ports ---
+class SimpleHandler(BaseHTTPRequestHandler):
+
+  def do_GET(self):
+    self.send_response(200)
+    self.end_headers()
+    self.wfile.write(b"Telegram AI Bot is running 24/7 successfully!")
+
+
+def run_web_server():
+  port = int(os.getenv("PORT", 10000))
+  server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+  server.serve_forever()
+
+
+# تشغيل خادم الويب في الخلفية فوراً
+threading.Thread(target=run_web_server, daemon=True).start()
+# -----------------------------------------------------------------
+
+
+# قراءة البيانات بأمان من المتغيرات البيئية في Render
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@Everything_your_mind_needs")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
 
 # جدول المواضيع اليومية
 daily_themes = {
@@ -31,7 +53,6 @@ daily_themes = {
 
 
 def generate_text_with_gemini(prompt):
-  # استخدام أحدث نموذج مدعوم gemini-2.0-flash لمنع أخطاء 404
   url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
   headers = {"Content-Type": "application/json"}
   data = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -139,11 +160,9 @@ def main():
       Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
   )
 
-  # تسجيل الأوامر والأزرار
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
-  # تشغيل البوت ليستمع للأوامر والأزرار
   application.run_polling()
 
 
