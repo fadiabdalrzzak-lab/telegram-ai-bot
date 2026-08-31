@@ -30,23 +30,6 @@ daily_themes = {
 }
 
 
-def generate_text_with_gemini(prompt):
-  # استخدام نموذج أكثر استقراراً
-  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-  headers = {"Content-Type": "application/json"}
-  data = {"contents": [{"parts": [{"text": prompt}]}]}
-
-  response = requests.post(url, headers=headers, json=data)
-  if response.status_code == 200:
-    result = response.json()
-    try:
-      return result["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-      raise Exception(f"Unexpected API response structure: {result}")
-  else:
-    raise Exception(f"Gemini API Error ({response.status_code}): {response.text}")
-
-
 async def generate_and_send_post():
   day_of_week = datetime.datetime.today().weekday()
   theme = daily_themes.get(day_of_week, "تطوير ذات ومعلومات عامة")
@@ -67,7 +50,7 @@ async def generate_and_send_post():
         None, generate_text_with_gemini, prompt
     )
 
-    # تقصير النص بقوة لضمان عدم تجاوز حد تيليجرام (1024 حرف للصورة)
+    # تقصير النص بقوة لضمان عدم تجاوز حد تيليجرام
     if len(message_text) > 650:
       message_text = message_text[:650] + "..."
 
@@ -77,10 +60,15 @@ async def generate_and_send_post():
     seed_value = f"{datetime.date.today()}-{datetime.datetime.now().hour}-{datetime.datetime.now().minute}-{datetime.datetime.now().second}"
     image_url = f"https://picsum.photos/seed/{seed_value}/1080/1080"
 
+    print(f"[{datetime.datetime.now()}] Downloading image...")
+    # تحميل الصورة أولاً لتفادي خطأ تيليجرام مع الروابط
+    image_response = requests.get(image_url, timeout=15)
+    image_bytes = image_response.content
+
     print(f"[{datetime.datetime.now()}] Sending post to Telegram channel...")
     async with Bot(token=TELEGRAM_TOKEN) as bot:
       await bot.send_photo(
-          chat_id=CHANNEL_ID, photo=image_url, caption=final_message
+          chat_id=CHANNEL_ID, photo=image_bytes, caption=final_message
       )
 
     print(f"[{datetime.datetime.now()}] ✅ AI Photo Post sent successfully!")
