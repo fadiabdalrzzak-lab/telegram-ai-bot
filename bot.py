@@ -16,9 +16,7 @@ import requests
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@Everything_your_mind_needs")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-WEBHOOK_URL = os.getenv(
-    "WEBHOOK_URL"
-)  # رابط خدمتك على رندر (مثال: https://xxxx.onrender.com)
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 # جدول المواضيع اليومية
 daily_themes = {
@@ -57,7 +55,7 @@ async def generate_and_send_post():
     قم بتأليف منشور قصير جداً، مبتكر، وجذاب جداً لقناة على تلجرام حول الموضوع التالي: '{theme}'.
     الشروط الصارمة:
     1. أن يكون المنشور ثنائي اللغة (النص العربي أولاً، يليه فاصل '---', ثم الترجمة باللغة الإنجليزية).
-    2. ألا يتجاوز طول النص بالكامل 700 حرف لكي يناسب وصف الصورة في تيليجرام.
+    2. ألا يتجاوز طول النص بالكامل 600 حرف لكي يناسب وصف الصورة في تيليجرام بدقة.
     3. استخدم رموز تعبيرية (Emojis) جذابة.
     4. لا تضع أي مقدمات، اكتب المحتوى مباشرة.
     """
@@ -69,9 +67,9 @@ async def generate_and_send_post():
         None, generate_text_with_gemini, prompt
     )
 
-    # حماية ضد تجاوز الحد الأقصى لكابشن تيليجرام (1024 حرف)
-    if len(message_text) > 800:
-      message_text = message_text[:800] + "..."
+    # تقصير النص بقوة لضمان عدم تجاوز حد تيليجرام (1024 حرف للصورة)
+    if len(message_text) > 650:
+      message_text = message_text[:650] + "..."
 
     footer = "\n\n─────────────────\n💡 @Everything_your_mind_needs"
     final_message = message_text + footer
@@ -89,6 +87,7 @@ async def generate_and_send_post():
 
   except Exception as e:
     print(f"❌ Error generating or sending photo post: {e}")
+    raise e
 
 
 # --- أوامر لوحة التحكم التفاعلية ---
@@ -106,15 +105,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   query = update.callback_query
-
-  # تجاهل خطأ انتهاء صلاحية الضغطة بسبب سبات رندر المجاني
   try:
     await query.answer()
   except Exception:
     pass
 
   if query.data == "force_post":
-    # استخدام send_message بدلاً من edit لتفادي مشاكل الوقت المستقطع
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text="⏳ جاري توليد ونشر المنشور في القناة الآن...",
@@ -166,7 +162,6 @@ def main():
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
-  # تشغيل الـ Webhook لإرضاء Render وفتح المنفذ بشكل صحيح ومجاني
   webhook_path = TELEGRAM_TOKEN
   full_webhook_url = (
       f"{WEBHOOK_URL.rstrip('/')}/{webhook_path}" if WEBHOOK_URL else None
